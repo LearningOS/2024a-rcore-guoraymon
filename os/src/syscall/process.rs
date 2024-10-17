@@ -47,8 +47,7 @@ pub fn sys_yield() -> isize {
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
     let us = get_time_us();
-    let mut buffers =
-        translated_byte_buffer(current_user_token(), ts as *const u8, 1);
+    let mut buffers = translated_byte_buffer(current_user_token(), ts as *const u8, 1);
     unsafe {
         *(buffers[0].as_mut_ptr() as *mut TimeVal) = TimeVal {
             sec: us / 1_000_000,
@@ -63,8 +62,7 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    let mut buffers =
-        translated_byte_buffer(current_user_token(), ti as *const u8, 1);
+    let mut buffers = translated_byte_buffer(current_user_token(), ti as *const u8, 1);
     unsafe {
         *(buffers[0].as_mut_ptr() as *mut TaskInfo) = TaskInfo {
             status: TASK_MANAGER.get_current_task_status(),
@@ -76,16 +74,25 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    if TASK_MANAGER.current_task_mmap(start, len, prot) {
+        0
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    if TASK_MANAGER.current_task_munmap(start, len) {
+        0
+    } else {
+        -1
+    }
 }
+
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
     trace!("kernel: sys_sbrk");

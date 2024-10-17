@@ -14,8 +14,9 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_SYSCALL_NUM;
+use crate::config::{MAX_SYSCALL_NUM, PAGE_SIZE};
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
 use crate::trap::TrapContext;
@@ -163,14 +164,14 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].syscall_times[syscall_id] += 1;
     }
-    
+
     /// Get current `Running` task status
     pub fn get_current_task_status(&self) -> TaskStatus {
         let inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status
     }
-    
+
     /// Get current `Running` task syscall times
     pub fn get_current_task_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM] {
         let inner = self.inner.exclusive_access();
@@ -185,6 +186,47 @@ impl TaskManager {
         inner.tasks[current].start_time
     }
 
+    /// current task mmap
+    pub fn current_task_mmap(&self, start: usize, len: usize, prot: usize) -> bool {
+        if start % PAGE_SIZE != 0 {
+            return false;
+        }
+        if prot == 0 || (prot & !0x7 != 0) {
+            return false;
+        }
+
+        let start_va = VirtAddr::from(start);
+        let end_va = VirtAddr::from(start + len);
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        if !inner.tasks[current]
+            .memory_set
+            .has_conflict(start_va, end_va)
+        {
+            inner.tasks[current].memory_set.insert_framed_area(
+                start_va,
+                end_va,
+                MapPermission::from_bits_truncate((prot << 1) as u8 | 16),
+            );
+            return true;
+        }
+        false
+    }
+
+    /// current task munmap
+    pub fn current_task_munmap(&self, start: usize, len: usize) -> bool {
+        if start % PAGE_SIZE != 0 {
+            return false;
+        }
+
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let start_va = VirtAddr::from(start);
+        let end_va = VirtAddr::from(start + len);
+        inner.tasks[current]
+            .memory_set
+            .remove_framed_area(start_va, end_va)
+    }
 }
 
 /// Run the first task in task list.

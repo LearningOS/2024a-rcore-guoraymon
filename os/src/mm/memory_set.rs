@@ -70,6 +70,48 @@ impl MemorySet {
         }
         self.areas.push(map_area);
     }
+
+    /// Check if there is conflict.
+    pub fn has_conflict(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        // println!("start_vpn = {:?}, end_vpn = {:?}", start_vpn, end_vpn);
+        for area in self.areas.iter() {
+            let area_start_vpn = area.vpn_range.get_start();
+            let area_end_vpn = area.vpn_range.get_end();
+            // println!(
+            //     "area_start_vpn = {:?}, area_end_vpn = {:?}",
+            //     area_start_vpn, area_end_vpn
+            // );
+            if (start_vpn >= area_start_vpn && start_vpn < area_end_vpn)
+                || (end_vpn > area_start_vpn && end_vpn < area_end_vpn)
+                || (area_start_vpn >= start_vpn && area_start_vpn < end_vpn)
+                || (area_end_vpn > start_vpn && area_end_vpn < end_vpn)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Remove a `MapArea`
+    pub fn remove_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let mut remove = None;
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        for (i, area) in self.areas.iter_mut().enumerate() {
+            if start_vpn == area.vpn_range.get_start() && end_vpn == area.vpn_range.get_end() {
+                area.unmap(&mut self.page_table);
+                remove = Some(i);
+            }
+        }
+        if remove.is_some() {
+            self.areas.remove(remove.unwrap());
+            return true;
+        }
+        false
+    }
+
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {
         self.page_table.map(
