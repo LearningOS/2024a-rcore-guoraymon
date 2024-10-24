@@ -60,8 +60,30 @@ impl MemorySet {
             None,
         );
     }
+    /// check if there is a conflict
+    pub fn has_conflict(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        // println!("start_vpn = {:?}, end_vpn = {:?}", start_vpn, end_vpn);
+        for area in self.areas.iter() {
+            let area_start_vpn = area.vpn_range.get_start();
+            let area_end_vpn = area.vpn_range.get_end();
+            // println!(
+            //     "area_start_vpn = {:?}, area_end_vpn = {:?}",
+            //     area_start_vpn, area_end_vpn
+            // );
+            if (start_vpn >= area_start_vpn && start_vpn < area_end_vpn)
+                || (end_vpn > area_start_vpn && end_vpn < area_end_vpn)
+                || (area_start_vpn >= start_vpn && area_start_vpn < end_vpn)
+                || (area_end_vpn > start_vpn && area_end_vpn < end_vpn)
+            {
+                return true;
+            }
+        }
+        false
+    }
     /// remove a area
-    pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
+    pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) -> bool {
         if let Some((idx, area)) = self
             .areas
             .iter_mut()
@@ -70,7 +92,9 @@ impl MemorySet {
         {
             area.unmap(&mut self.page_table);
             self.areas.remove(idx);
+            return true;
         }
+        return false;
     }
     /// Add a new MapArea into this MemorySet.
     /// Assuming that there are no conflicts in the virtual address
