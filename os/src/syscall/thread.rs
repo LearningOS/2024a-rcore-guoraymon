@@ -41,6 +41,10 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
         tasks.push(None);
     }
     tasks[new_task_tid] = Some(Arc::clone(&new_task));
+
+    process_inner.mutex_detect.new_thread();
+    process_inner.semaphore_detect.new_thread();
+
     let new_task_trap_cx = new_task_inner.get_trap_cx();
     *new_task_trap_cx = TrapContext::app_init_context(
         entry,
